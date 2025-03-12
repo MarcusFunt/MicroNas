@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF Notes Browser</title>
+  <link rel="icon" type="image/x-icon" href="{{ url_for('favicon') }}">
+  
+  <!-- Bootstrap & FontAwesome -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+
+  <style>
+    /* General Dark Theme */
+    body {
+      background-color: #121212;
+      color: #e0e0e0;
+      font-family: 'Arial', sans-serif;
+    }
+    /* Navbar Styling */
+    .navbar {
+      background-color: #1f1f1f;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      padding: 12px 20px;
+    }
+    .navbar-brand img {
+      height: 40px;
+    }
+    .navbar-nav .nav-link {
+      color: #e0e0e0;
+      font-size: 1.1rem;
+    }
+    .navbar-nav .nav-link:hover {
+      color: #58a6ff;
+    }
+    /* New CSS class for uniform button sizing */
+    .btn-uniform {
+      padding: 10px 15px;
+      font-size: 1.1rem;
+      min-width: 150px;
+      text-align: center;
+    }
+    /* File List Grid */
+    .file-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      justify-content: flex-start;
+    }
+    .file-item {
+      background: #1e1e1e;
+      padding: 15px;
+      border-radius: 8px;
+      width: 200px;
+      text-align: center;
+      transition: transform 0.2s ease, background 0.3s ease;
+      word-wrap: break-word;
+      overflow: hidden;
+      cursor: pointer;
+      position: relative;
+    }
+    .file-item:hover {
+      transform: scale(1.05);
+      background: #2c2c2c;
+    }
+    /* Icon and Text styling inside file-item */
+    .file-item i {
+      font-size: 40px;
+      margin-bottom: 10px;
+      color: #58a6ff;
+    }
+    .file-item p {
+      margin: 0;
+      font-size: 0.95rem;
+      word-break: break-word;
+    }
+    /* Upload Button styling */
+    .btn-upload {
+      background-color: #28a745;
+      color: white;
+      border-radius: 8px;
+      transition: background 0.3s ease;
+    }
+    .btn-upload:hover {
+      background-color: #218838;
+    }
+    /* Delete Button styling */
+    .btn-delete {
+      background-color: #dc3545;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      transition: background 0.3s ease;
+      margin-top: 5px;
+    }
+    .btn-delete:hover {
+      background-color: #c82333;
+    }
+    /* Pagination styles */
+    .pagination {
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar navbar-expand-lg navbar-dark">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="{{ url_for('index') }}">
+        <img src="{{ url_for('logo') }}" alt="Logo">
+      </a>
+      <div class="collapse navbar-collapse">
+        <form class="d-flex mx-auto" action="{{ url_for('search') }}" method="get">
+          <input class="form-control me-2" type="search" name="q" placeholder="Search PDFs" aria-label="Search">
+          <button class="btn btn-outline-light" type="submit">Search</button>
+        </form>
+        <ul class="navbar-nav ms-auto">
+          {% if logged_in %}
+            <li class="nav-item">
+              <a class="btn btn-upload btn-uniform" href="{{ url_for('upload') }}">
+                <i class="fa-solid fa-upload"></i> Upload PDF
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="btn btn-secondary ms-3 btn-uniform" href="{{ url_for('view_logs') }}">
+                <i class="fa-solid fa-file-alt"></i> Logs
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link text-light ms-3" href="{{ url_for('logout') }}">
+                <i class="fa-solid fa-sign-out-alt"></i> Logout
+              </a>
+            </li>
+          {% else %}
+            <li class="nav-item">
+              <a class="btn btn-primary btn-uniform" href="{{ url_for('login') }}">
+                <i class="fa-solid fa-user"></i> Admin Login
+              </a>
+            </li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Container -->
+  <div class="container mt-4">
+    <!-- Removed the "Browsing: /{{ current_path }}" header -->
+    
+    {% if current_path %}
+      {% set up_path = current_path.rsplit('/', 1)[0] if '/' in current_path else '' %}
+      <a href="{{ url_for('index', path=up_path) }}" class="btn btn-secondary mb-3">
+        <i class="fa-solid fa-arrow-up"></i> Up One Level
+      </a>
+    {% endif %}
+
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="alert alert-info">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- File & Folder Display -->
+    <div class="file-list">
+      {% for item in items %}
+        {% if item.is_dir %}
+          <div class="file-item" onclick="window.location.href='{{ url_for('index', path=item.path) }}';">
+            <i class="fa-solid fa-folder"></i>
+            <p>{{ item.name }}</p>
+            {% if logged_in %}
+              <form method="POST" action="{{ url_for('delete_file', filename=item.path) }}" onclick="event.stopPropagation();">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-delete">
+                  <i class="fa-solid fa-trash"></i> Delete Folder
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="file-item" onclick="window.location.href='{{ url_for('view_file', filename=item.path) }}';">
+            <i class="fa-solid fa-file-pdf"></i>
+            <p>{{ item.name }}</p>
+            {% if logged_in %}
+              <form method="POST" action="{{ url_for('delete_file', filename=item.path) }}" onclick="event.stopPropagation();">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="btn-delete">
+                  <i class="fa-solid fa-trash"></i> Delete
+                </button>
+              </form>
+            {% endif %}
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    
+    <!-- Pagination Controls -->
+    {% if total_items > items_per_page %}
+    <nav aria-label="Page navigation">
+      <ul class="pagination">
+        {% if page > 1 %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('index', path=current_path, page=page-1) }}">Previous</a>
+        </li>
+        {% endif %}
+        {% for p in range(1, (total_items // items_per_page) + 2) %}
+          <li class="page-item {% if p == page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('index', path=current_path, page=p) }}">{{ p }}</a>
+          </li>
+        {% endfor %}
+        {% if page * items_per_page < total_items %}
+        <li class="page-item">
+          <a class="page-link" href="{{ url_for('index', path=current_path, page=page+1) }}">Next</a>
+        </li>
+        {% endif %}
+      </ul>
+    </nav>
+    {% endif %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
